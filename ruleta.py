@@ -197,7 +197,7 @@ class RuletaApp(QWidget):
         super().__init__()
         self.setWindowTitle("Seguimiento de Ruleta · Estrategia 3 Repeticiones")
         self.resize(1000, 760)
-        self.setMinimumSize(820, 620)
+        self.setMinimumSize(660, 560)
         self.setStyleSheet("background-color: %s;" % FONDO)
 
         self.bets = {}
@@ -312,6 +312,19 @@ class RuletaApp(QWidget):
         self._reg_fuente(lbl, key)
         return lbl
 
+    def _luz(self, encendida_color, texto):
+        lbl = QLabel()
+        lbl.setFixedSize(15, 15)
+        lbl._enc = encendida_color
+        lbl.setToolTip(texto)
+        self._set_luz(lbl, False)
+        return lbl
+
+    def _set_luz(self, luz, encendida):
+        luz.setStyleSheet(
+            "QLabel{background:%s;border-radius:7px;border:1px solid #2c2c2c;}"
+            % (luz._enc if encendida else "#2e2e2e"))
+
     def _btn(self, texto, comando, bg, fg, key, hover=None, bold=True):
         b = QPushButton(texto)
         if hover is None:
@@ -331,26 +344,50 @@ class RuletaApp(QWidget):
         cinta.setStyleSheet(
             "QFrame{background:#101010;border:1px solid #2c2c2c;}")
         h = QHBoxLayout(cinta)
-        h.setContentsMargins(10, 4, 10, 4)
-        h.setSpacing(8)
+        h.setContentsMargins(8, 6, 8, 6)
+        h.setSpacing(10)
 
-        def bloque(titulo, valor_label):
-            box = QHBoxLayout()
-            box.setSpacing(4)
-            box.addWidget(self._etiqueta(titulo, SUB, "sub"))
-            box.addWidget(valor_label)
-            return box
+        def bloque(titulo, widget, stretch=1):
+            caja = QVBoxLayout()
+            caja.setSpacing(1)
+            t = self._etiqueta(titulo, SUB, "sub")
+            t.setAlignment(Qt.AlignHCenter)
+            if isinstance(widget, QLabel):
+                widget.setAlignment(Qt.AlignHCenter)
+                widget.setWordWrap(True)
+            caja.addWidget(t)
+            caja.addWidget(widget)
+            h.addLayout(caja, stretch)
 
-        self.lbl_fase = self._etiqueta("OBSERVANDO", ORO, "peq")
-        h.addLayout(bloque("FASE", self.lbl_fase))
+        luces = QWidget()
+        lh = QHBoxLayout(luces)
+        lh.setContentsMargins(0, 0, 0, 0)
+        lh.setSpacing(4)
+        self.luz_amar = self._luz("#ffc933", "Observando")
+        self.luz_verde = self._luz("#2ecc40", "Jugando")
+        lh.addWidget(self.luz_amar, 0, Qt.AlignHCenter)
+        lh.addWidget(self.luz_verde, 0, Qt.AlignHCenter)
+        bloque("FASE", luces, 0)
+
         self.lbl_apostados = self._etiqueta("—", TEXTO, "peq")
-        h.addLayout(bloque("APOSTADOS", self.lbl_apostados))
+        bloque("APOSTADOS", self.lbl_apostados, 2)
+
         self.lbl_perdida = self._etiqueta("-0 ficha(s)", TEXTO, "peq")
-        h.addLayout(bloque("PÉRDIDA", self.lbl_perdida))
-        h.addWidget(self._btn("Reiniciar conteo", self._reiniciar_conteo,
-                              "#7a4d1a", "white", "sub"))
+        caja_perd = QVBoxLayout()
+        caja_perd.setSpacing(1)
+        t = self._etiqueta("PÉRDIDA", SUB, "sub")
+        t.setAlignment(Qt.AlignHCenter)
+        self.lbl_perdida.setAlignment(Qt.AlignHCenter)
+        self.lbl_perdida.setWordWrap(True)
+        caja_perd.addWidget(t)
+        caja_perd.addWidget(self.lbl_perdida)
+        caja_perd.addWidget(self._btn("Reiniciar conteo", self._reiniciar_conteo,
+                                      "#7a4d1a", "white", "sub"),
+                            0, Qt.AlignHCenter)
+        h.addLayout(caja_perd, 2)
+
         self.lbl_unidad = self._etiqueta("1 ficha(s)", TEXTO, "peq")
-        h.addLayout(bloque("UNIDAD", self.lbl_unidad))
+        bloque("UNIDAD", self.lbl_unidad, 0)
 
         self.entry_banca = QLineEdit()
         self.entry_banca.setFixedWidth(70)
@@ -360,15 +397,22 @@ class RuletaApp(QWidget):
             "padding:2px 4px;}")
         self._reg_fuente(self.entry_banca, "sub")
         self.entry_banca.setText(str(self.banca))
-        h.addWidget(self._etiqueta("BANCA", SUB, "sub"))
-        h.addWidget(self.entry_banca)
-        h.addWidget(self._btn("OK", self._apl_banca, GRIS, TEXTO, "sub"))
+        caja_ban = QVBoxLayout()
+        caja_ban.setSpacing(1)
+        t = self._etiqueta("BANCA", SUB, "sub")
+        t.setAlignment(Qt.AlignHCenter)
+        fila_ban = QHBoxLayout()
+        fila_ban.setSpacing(4)
+        fila_ban.addWidget(self.entry_banca, 0, Qt.AlignHCenter)
+        fila_ban.addWidget(self._btn("OK", self._apl_banca, GRIS, TEXTO, "sub"))
+        caja_ban.addWidget(t)
+        caja_ban.addLayout(fila_ban)
+        h.addLayout(caja_ban, 1)
 
         self.lbl_saldo = self._etiqueta("$200", ORO, "peq")
-        h.addLayout(bloque("SALDO", self.lbl_saldo))
+        bloque("SALDO", self.lbl_saldo, 0)
         self.lbl_benef = self._etiqueta("+$0", "#4caf50", "peq")
-        h.addLayout(bloque("BENEFICIO", self.lbl_benef))
-        h.addStretch(1)
+        bloque("BENEFICIO", self.lbl_benef, 0)
         return cinta
 
     def _caja_texto(self, titulo):
@@ -424,6 +468,10 @@ class RuletaApp(QWidget):
         row.addWidget(b1, 1)
         row.addWidget(b2, 1)
         layout.addLayout(row, 0)
+
+    def _set_chip(self, valor):
+        self.chip = valor
+        self.chips.update()
 
     # ---------- apuestas manuales ----------
 
@@ -658,27 +706,45 @@ class RuletaApp(QWidget):
 
     def _cinta(self):
         if self.fase == "obs":
-            texto = "OBSERVANDO (giro %d)" % self.juego_tiros
-            if self.juego_tiros >= 9 and self.juego_tiros <= 20:
-                texto = "OBSERVANDO · zona amarilla (giro %d)" % self.juego_tiros
-            color = ORO if self.juego_tiros < 9 else "#ff5252"
-            self.lbl_fase.setText(texto)
-            self.lbl_fase.setStyleSheet("color:%s;" % color)
+            self._set_luz(self.luz_amar, True)
+            self._set_luz(self.luz_verde, False)
+            tip = "Observando · giro %d" % self.juego_tiros
+            if 9 <= self.juego_tiros <= 20:
+                tip += "\nZona amarilla: un repetido es más probable."
+            self.luz_amar.setToolTip(tip)
+            self.luz_verde.setToolTip("Jugando (números apostados)")
         else:
-            self.lbl_fase.setText("JUGANDO")
-            self.lbl_fase.setStyleSheet("color:#4caf50;")
+            self._set_luz(self.luz_amar, False)
+            self._set_luz(self.luz_verde, True)
+            self.luz_amar.setToolTip("Observando (sin apuestas)")
+            self.luz_verde.setToolTip("Jugando con %d número(s)"
+                                      % len(self.estrategia))
 
         self.lbl_apostados.setText(", ".join(str(k) for k in self.estrategia) or "—")
         limite = self._limite_perdida()
+        N = len(self.estrategia)
         if limite is None:
             self.lbl_perdida.setText("-%d ficha(s)" % self.perdida)
             self.lbl_perdida.setStyleSheet("color:%s;" % TEXTO)
+            self.lbl_perdida.setToolTip("Pérdida acumulada en esta jugada.")
         else:
-            self.lbl_perdida.setText("-%d / límite -%d" % (self.perdida, limite))
+            self.lbl_perdida.setText("-%d / -%d" % (self.perdida, limite))
             if self.perdida >= limite * 0.75:
                 self.lbl_perdida.setStyleSheet("color:#ff5252;")
             else:
                 self.lbl_perdida.setStyleSheet("color:%s;" % TEXTO)
+            apuesta_giro = N * self.unidad
+            falta = max(0, limite - self.perdida)
+            self.lbl_perdida.setToolTip(
+                "Pérdida en esta jugada: %d ficha(s)\n"
+                "Cada giro pierdes %d × %d = %d ficha(s)\n"
+                "Límite = ficha×(36−apostados)−12 = %d×(36−%d)−12 = %d\n"
+                "Faltan %d ficha(s) para sumar 1 ficha por número.\n"
+                "El 24 del video vale cuando apuestas a 1 solo número;\n"
+                "cuantos más números apuestas, antes toca subir.\n"
+                "Al superarlo subes a %d ficha(s) por número."
+                % (self.perdida, N, self.unidad, apuesta_giro,
+                   self.unidad, N, limite, falta, self.unidad + 1))
         self.lbl_unidad.setText("%d ficha(s)" % self.unidad)
         self.lbl_saldo.setText("$%d" % (self.saldo + self.beneficio))
         self.lbl_benef.setText("+$%d" % self.beneficio)
