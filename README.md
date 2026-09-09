@@ -4,6 +4,11 @@ Aplicación de escritorio (interfaz **Qt / PySide6**) para seguir la estrategia 
 
 Se compila automáticamente como aplicación nativa para **Windows**, **macOS** y **Linux** (sin necesidad de Python).
 
+## Videos de referencia
+
+- **Parte 1 · Estrategia 3 Repeticiones**: https://youtu.be/6_ZdYiSr5No
+- **Parte 2 · Aclaraciones y progresión de apuestas**: https://www.youtube.com/watch?v=2fcX6c0rid8
+
 ## Descargar
 
 Ve a la pestaña **Releases** de este repositorio y descarga el archivo para tu sistema:
