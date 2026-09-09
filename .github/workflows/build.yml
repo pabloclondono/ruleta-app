@@ -29,24 +29,28 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Tk (Linux)
+      - name: Install Qt libs (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y python3-tk
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3
 
-      - name: Install PyInstaller
-        run: pip install pyinstaller
+      - name: Install PyInstaller + PySide6
+        run: pip install pyinstaller pyside6
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
-        run: pyinstaller --onefile --windowed --clean --name ruleta ruleta.py
+        run: pyinstaller --onefile --windowed --clean --collect-all PySide6 --name ruleta ruleta.py
 
       - name: Build (macOS app bundle)
         if: runner.os == 'macOS'
-        run: pyinstaller --windowed --clean --name ruleta ruleta.py
+        run: pyinstaller --windowed --clean --collect-all PySide6 --name ruleta ruleta.py
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
-        run: pyinstaller --onefile --windowed --clean --name ruleta ruleta.py
+        run: pyinstaller --onefile --windowed --clean --collect-all PySide6 --name ruleta ruleta.py
+
+      - name: Sign (macOS, ad-hoc)
+        if: runner.os == 'macOS'
+        run: codesign --force --deep --sign - dist/ruleta.app
 
       - name: Package (Windows)
         if: runner.os == 'Windows'

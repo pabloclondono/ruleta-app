@@ -1,15 +1,20 @@
-import tkinter as tk
-import tkinter.font as tkfont
-from tkinter import messagebox
+import sys
 
-ROJO = {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36}
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QTextCharFormat, QTextCursor, QTextOption
+from PySide6.QtWidgets import (
+    QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QPlainTextEdit, QPushButton, QVBoxLayout, QWidget,
+)
+
+ROJO = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
 NEGRO = set(range(1, 37)) - ROJO
 RANGO = [str(n) for n in range(37)]
 
 FILAS = [
-    [3,6,9,12,15,18,21,24,27,30,33,36],
-    [2,5,8,11,14,17,20,23,26,29,32,35],
-    [1,4,7,10,13,16,19,22,25,28,31,34],
+    [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36],
+    [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35],
+    [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34],
 ]
 
 VALORES_FICHAS = [50, 500, 2500, 5000, 25000, 50000]
@@ -32,13 +37,168 @@ GRIS    = "#3a3a3a"
 BASE_W, BASE_H = 1000, 720
 
 
-class RuletaApp:
-    def __init__(self, root):
-        self.root = root
-        root.title("Seguimiento de Ruleta · Estrategia 3 Repeticiones")
-        root.configure(bg=FONDO)
-        root.geometry("1000x760")
-        root.minsize(820, 620)
+def _claro(color, factor):
+    c = QColor(color)
+    c = c.lighter(factor)
+    return c.name()
+
+
+class MesaWidget(QWidget):
+    def __init__(self, app):
+        super().__init__()
+        self.app = app
+        self._cajas = []
+        self._dibujos = []
+        self._loc_rect = {}
+        self.setMinimumSize(380, 260)
+
+    def _layout(self):
+        self._cajas = []
+        self._dibujos = []
+        self._loc_rect = {}
+        w, h = self.width(), self.height()
+        m = max(3, int(round(w * 0.006)))
+        ax, ay = m, m
+        cw = (w - 2 * m) / 14.0
+        rh = (h - 2 * m) / 5.0
+
+        def add(x, y, xs, ys, loc, texto, color):
+            rect = QRectF(ax + x * cw, ay + y * rh, xs * cw, ys * rh)
+            self._cajas.append((rect, loc))
+            self._loc_rect[loc] = rect
+            self._dibujos.append((rect, loc, texto, QColor(color)))
+
+        add(0, 0, 1, 3, "0", "0", VERDE)
+        for r, fila in enumerate(FILAS):
+            for j, num in enumerate(fila):
+                bg = ROJO_BG if num in ROJO else NEGRO_BG
+                add(1 + j, r, 1, 1, str(num), str(num), bg)
+            add(13, r, 1, 1, "col%d" % (r + 1), "2:1", AZUL)
+
+        for i, (texto, loc) in enumerate([("1-12", "dozen1"), ("13-24", "dozen2"),
+                                          ("25-36", "dozen3")]):
+            add(1 + i * 4, 3, 4, 1, loc, texto, AZUL)
+
+        for i, (texto, loc, col) in enumerate([
+                ("1-18", "1-18", GRIS), ("PAR", "par", GRIS),
+                ("ROJO", "rojo", ROJO_BG), ("NEGRO", "negro", NEGRO_BG),
+                ("IMPAR", "impar", GRIS), ("19-36", "19-36", GRIS)]):
+            add(1 + i * 2, 4, 2, 1, loc, texto, col)
+
+    def paintEvent(self, e):
+        self._layout()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.fillRect(self.rect(), QColor(FONDO))
+
+        opt = QTextOption(Qt.AlignCenter)
+        for rect, loc, texto, bg in self._dibujos:
+            p.fillRect(rect, bg)
+            p.setPen(QPen(QColor("#2b2b2b"), 1))
+            p.drawRect(rect)
+
+            p.setFont(self.app._fuentes["num"])
+            p.setPen(QColor("#f2f2f2"))
+            if loc == "0" or loc.lstrip("-").isdigit():
+                r_num = QRectF(rect.left(), rect.top() + 2, rect.width(),
+                               rect.height() * 0.56)
+                p.drawText(r_num, texto, opt)
+                fm = p.fontMetrics()
+                hr = fm.height()
+                if loc in self.app.bets:
+                    p.setFont(self.app._fuentes["mon"])
+                    fm2 = p.fontMetrics()
+                    r_m = QRectF(rect.left(), rect.bottom() - 2 * hr - 2,
+                                 rect.width(), hr)
+                    p.setPen(QColor(ORO))
+                    p.drawText(r_m, "$%d" % self.app.bets[loc], opt)
+                    hr2 = fm2.height()
+                    if int(loc) in self.app.estrategia:
+                        p.setFont(self.app._fuentes["est"])
+                        fm3 = p.fontMetrics()
+                        r_e = QRectF(rect.left(), rect.bottom() - hr2 - 2,
+                                     rect.width(), hr2)
+                        p.setPen(QColor("#ffd700"))
+                        p.drawText(r_e, "R%d" % self.app.estrategia[int(loc)], opt)
+                else:
+                    if int(loc) in self.app.estrategia:
+                        p.setFont(self.app._fuentes["est"])
+                        fm3 = p.fontMetrics()
+                        hr3 = fm3.height()
+                        r_e = QRectF(rect.left(), rect.bottom() - hr3 - 2,
+                                     rect.width(), hr3)
+                        p.setPen(QColor("#ffd700"))
+                        p.drawText(r_e, "R%d" % self.app.estrategia[int(loc)], opt)
+            else:
+                p.drawText(rect, texto, opt)
+
+            if self.app.ultima_celda == loc:
+                p.setPen(QPen(QColor(ORO), 3))
+                p.drawRect(rect.adjusted(1, 1, -1, -1))
+
+    def mousePressEvent(self, e):
+        pos = e.position()
+        for rect, loc in self._cajas:
+            if rect.contains(pos):
+                if e.button() == Qt.MouseButton.RightButton:
+                    self.app._quitar_apuesta(loc)
+                else:
+                    self.app._agregar_apuesta(loc)
+                return
+
+
+class ChipBar(QWidget):
+    def __init__(self, app):
+        super().__init__()
+        self.app = app
+        self.setFixedHeight(48)
+        self.setMinimumWidth(200)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.fillRect(self.rect(), QColor(FONDO))
+
+        n = len(VALORES_FICHAS)
+        gap = 10
+        r = min(19, (self.width() - gap * (n + 1)) / (2.0 * n))
+        r = max(10, r)
+        step = (self.width() - gap) / float(n)
+        cy = self.height() / 2.0
+        opt = QTextOption(Qt.AlignCenter)
+
+        for i, valor in enumerate(VALORES_FICHAS):
+            cx = gap / 2.0 + i * step + step / 2.0
+            sel = (self.app.chip == valor)
+            p.setPen(QPen(QColor(ORO if sel else "#5a5a5a"), 3 if sel else 2))
+            p.setBrush(QColor(COLOR_FICHA[valor]))
+            p.drawEllipse(QRectF(cx - r, cy - r, 2 * r, 2 * r))
+            p.setFont(self.app._fuentes["chip"])
+            p.setPen(QColor(TEXTO_FICHA[valor]))
+            p.drawText(QRectF(cx - r, cy - r, 2 * r, 2 * r), "$%d" % valor, opt)
+
+    def mousePressEvent(self, e):
+        pos = e.position()
+        n = len(VALORES_FICHAS)
+        gap = 10
+        r = min(19, (self.width() - gap * (n + 1)) / (2.0 * n))
+        r = max(10, r)
+        step = (self.width() - gap) / float(n)
+        cx0 = gap / 2.0 + step / 2.0
+        for i, valor in enumerate(VALORES_FICHAS):
+            cx = cx0 + i * step
+            if (pos.x() - cx) ** 2 + (pos.y() - self.height() / 2.0) ** 2 <= r * r:
+                self.app._set_chip(valor)
+                return
+
+
+class RuletaApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Seguimiento de Ruleta · Estrategia 3 Repeticiones")
+        self.resize(1000, 760)
+        self.setMinimumSize(820, 620)
+        self.setStyleSheet("background-color: %s;" % FONDO)
 
         self.bets = {}
         self.historial = []
@@ -46,18 +206,17 @@ class RuletaApp:
         self.ultima_celda = None
 
         self._estado_estrategia()
-        self.chip = tk.IntVar(value=500)
         self._s = 1.0
-        self.col_fichas = []
-
+        self._wfont = []
         self._crear_fuentes()
-        self._crear_widgets()
-        self._dibujar_fichas()
+        self._construir()
         self._cinta()
-        root.bind("<Configure>", self._on_configure)
+        self.entry_num.setFocus()
+
+    # ---------- estado ----------
 
     def _estado_estrategia(self):
-        self.banca = tk.StringVar(value="200")
+        self.banca = 200
         self.saldo = 200
         self.beneficio = 0
         self.unidad = 1
@@ -66,271 +225,217 @@ class RuletaApp:
         self.fase = "obs"
         self.juego_count = {}
         self.estrategia = {}
-        self.fase_var = tk.StringVar()
-        self.apuestas_var = tk.StringVar()
-        self.perdida_var = tk.StringVar()
-        self.unidad_var = tk.StringVar()
-        self.saldo_var = tk.StringVar()
-        self.benef_var = tk.StringVar()
+        self.chip = 500
+
+    # ---------- fuentes / escala ----------
 
     def _crear_fuentes(self):
-        self.fonts = []
-        def fuente(base, peso):
-            f = tkfont.Font(size=int(base * self._s), weight=peso)
-            self.fonts.append((f, base))
-            return f
-        self.f_tit  = fuente(14, "bold")
-        self.f_sub  = fuente(10, "normal")
-        self.f_num  = fuente(11, "bold")
-        self.f_mon  = fuente(9, "bold")
-        self.f_chip = fuente(8, "bold")
-        self.f_hist = fuente(13, "bold")
-        self.f_txt  = fuente(10, "normal")
-        self.f_btn  = fuente(13, "bold")
-        self.f_peq  = fuente(10, "bold")
-        self.f_est  = fuente(8, "bold")
+        self._font_defs = {
+            "tit": (14, True), "sub": (10, False), "num": (11, True),
+            "mon": (9, True), "chip": (8, True), "hist": (13, True),
+            "txt": (10, False), "btn": (13, True), "peq": (10, True),
+            "est": (8, True),
+        }
+        self._fuentes = {}
+        self._aplicar_fuentes()
 
-    def _crear_widgets(self):
-        self.content = tk.Frame(self.root, bg=FONDO)
-        self.content.pack(fill="both", expand=True)
-        self.content.grid_rowconfigure(1, weight=1)
-        self.content.grid_rowconfigure(3, weight=1)
-        self.content.grid_columnconfigure(0, weight=1)
+    def _aplicar_fuentes(self):
+        for key, (base, bold) in self._font_defs.items():
+            f = QFont()
+            f.setFamily("DejaVu Sans")
+            f.setPointSize(max(6, int(round(base * self._s))))
+            f.setBold(bold)
+            self._fuentes[key] = f
+        for w, key in self._wfont:
+            w.setFont(self._fuentes[key])
 
-        self._fila_registro(self.content)
-        self._paneles(self.content)
-        self._cinta_estrategia(self.content)
-        self._marco_mesa(self.content)
-        self._barra_fichas(self.content)
-        self._btn_nueva(self.content)
+    def _reg_fuente(self, w, key):
+        self._wfont.append((w, key))
+        w.setFont(self._fuentes[key])
 
-    def _fila_registro(self, padre):
-        fila = tk.Frame(padre, bg=FONDO)
-        fila.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 6))
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        w, h = e.size().width(), e.size().height()
+        s = min(w / BASE_W, h / BASE_H)
+        s = max(0.55, min(1.8, s))
+        if abs(s - self._s) < 0.03:
+            return
+        self._s = s
+        self._aplicar_fuentes()
+        self.mesa.update()
+        self.chips.update()
 
-        tk.Label(fila, text="REGISTRAR NÚMERO", bg=FONDO, fg=ORO,
-                 font=self.f_peq).pack(side="left")
-        self.entry_num = tk.Entry(fila, width=5, font=self.f_hist, justify="center",
-                                  bg="#0d0d0d", fg="white", relief="flat", bd=0)
-        self.entry_num.pack(side="left", padx=(8, 6))
-        self.entry_num.bind("<Return>", lambda e: self._registrar())
+    # ---------- construcción ----------
 
-        tk.Button(fila, text="Registrar", command=self._registrar, font=self.f_peq,
-                  bg=ORO, fg="#1a1a1a", relief="flat", bd=0, padx=12, pady=2,
-                  activebackground="#e6b73c", cursor="hand2").pack(side="left")
+    def _construir(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
 
-        tk.Button(fila, text="Limpiar apuestas manuales", command=self._limpiar_apuestas,
-                  font=self.f_sub, bg=GRIS, fg=TEXTO, relief="flat", bd=0,
-                  padx=10, pady=2, activebackground="#4a4a4a", cursor="hand2"
-                  ).pack(side="left", padx=(14, 0))
+        self._fila_registro(layout)
+        self._paneles(layout)
+        layout.addWidget(self._cinta_estrategia())
+        self._marco_mesa(layout)
+        self._btn_nueva(layout)
 
-        self.tiros_var = tk.StringVar(value="Tiros: 0")
-        self.total_var = tk.StringVar(value="Total: $0")
-        tk.Label(fila, textvariable=self.tiros_var, bg=FONDO, fg=TEXTO,
-                 font=self.f_sub).pack(side="right", padx=10)
-        tk.Label(fila, textvariable=self.total_var, bg=FONDO, fg=ORO,
-                 font=self.f_peq).pack(side="right", padx=10)
+    def _fila_registro(self, layout):
+        fila = QHBoxLayout()
+        fila.setSpacing(8)
 
-    def _cinta_estrategia(self, padre):
-        cinta = tk.Frame(padre, bg="#101010", highlightbackground="#2c2c2c",
-                         highlightthickness=1)
-        cinta.grid(row=2, column=0, sticky="ew", padx=12, pady=(2, 6))
+        fila.addWidget(self._etiqueta("REGISTRAR NÚMERO", ORO, "peq"))
 
-        self.lbl_fase = tk.Label(cinta, text="FASE", bg="#101010", fg=SUB, font=self.f_sub)
-        self.lbl_fase.pack(side="left", padx=(10, 2))
-        self.val_fase = tk.Label(cinta, textvariable=self.fase_var, bg="#101010",
-                                 fg=ORO, font=self.f_peq)
-        self.val_fase.pack(side="left", padx=(0, 14))
+        self.entry_num = QLineEdit()
+        self.entry_num.setMaxLength(2)
+        self.entry_num.setFixedWidth(64)
+        self.entry_num.setAlignment(Qt.AlignCenter)
+        self.entry_num.setStyleSheet(
+            "QLineEdit{background:#0d0d0d;color:white;border:1px solid #2c2c2c;"
+            "padding:4px;}")
+        self._reg_fuente(self.entry_num, "hist")
+        self.entry_num.returnPressed.connect(self._registrar)
+        fila.addWidget(self.entry_num)
 
-        tk.Label(cinta, text="APOSTADOS", bg="#101010", fg=SUB, font=self.f_sub
-                 ).pack(side="left", padx=(0, 2))
-        tk.Label(cinta, textvariable=self.apuestas_var, bg="#101010", fg=TEXTO,
-                 font=self.f_peq).pack(side="left", padx=(0, 14))
+        fila.addWidget(self._btn("Registrar", self._registrar, ORO, "#1a1a1a", "peq"))
+        fila.addWidget(self._btn("Limpiar apuestas manuales", self._limpiar_apuestas,
+                                 GRIS, TEXTO, "sub"))
 
-        tk.Label(cinta, text="PÉRDIDA", bg="#101010", fg=SUB, font=self.f_sub
-                 ).pack(side="left", padx=(0, 2))
-        self.lbl_perdida = tk.Label(cinta, textvariable=self.perdida_var, bg="#101010",
-                                    fg=TEXTO, font=self.f_peq)
-        self.lbl_perdida.pack(side="left", padx=(0, 6))
-        tk.Button(cinta, text="Reiniciar conteo", command=self._reiniciar_conteo,
-                  font=self.f_sub, bg="#7a4d1a", fg="white", relief="flat", bd=0,
-                  padx=8, pady=1, activebackground="#955d1f", cursor="hand2"
-                  ).pack(side="left", padx=(0, 14))
+        fila.addStretch(1)
+        self.lbl_tiros = self._etiqueta("Tiros: 0", TEXTO, "sub")
+        self.lbl_total = self._etiqueta("Total: $0", ORO, "peq")
+        fila.addWidget(self.lbl_tiros)
+        fila.addWidget(self.lbl_total)
+        layout.addLayout(fila, 0)
 
-        tk.Label(cinta, text="UNIDAD", bg="#101010", fg=SUB, font=self.f_sub
-                 ).pack(side="left", padx=(0, 2))
-        tk.Label(cinta, textvariable=self.unidad_var, bg="#101010", fg=TEXTO,
-                 font=self.f_peq).pack(side="left", padx=(0, 14))
+    def _etiqueta(self, texto, color, key):
+        lbl = QLabel(texto)
+        lbl.setStyleSheet("color:%s;" % color)
+        self._reg_fuente(lbl, key)
+        return lbl
 
-        tk.Label(cinta, text="BANCA", bg="#101010", fg=SUB, font=self.f_sub
-                 ).pack(side="left", padx=(0, 2))
-        self.entry_banca = tk.Entry(cinta, width=5, font=self.f_sub, justify="center",
-                                    bg="#1a1a1a", fg="white", relief="flat", bd=0,
-                                    textvariable=self.banca)
-        self.entry_banca.pack(side="left", padx=(0, 4))
-        tk.Button(cinta, text="OK", command=self._apl_banca, font=self.f_sub,
-                  bg=GRIS, fg=TEXTO, relief="flat", bd=0, padx=6, cursor="hand2"
-                  ).pack(side="left", padx=(0, 14))
+    def _btn(self, texto, comando, bg, fg, key, hover=None, bold=True):
+        b = QPushButton(texto)
+        if hover is None:
+            hover = _claro(bg, 135)
+        b.setCursor(Qt.PointingHandCursor)
+        b.setStyleSheet(
+            "QPushButton{background:%s;color:%s;border:none;padding:5px 12px;"
+            "font-weight:%s;}" % (bg, fg, "bold" if bold else "normal")
+            + "QPushButton:hover{background:%s;}" % hover)
+        self._reg_fuente(b, key)
+        b.setFocusPolicy(Qt.NoFocus)
+        b.clicked.connect(comando)
+        return b
 
-        tk.Label(cinta, text="SALDO", bg="#101010", fg=SUB, font=self.f_sub
-                 ).pack(side="left", padx=(0, 2))
-        tk.Label(cinta, textvariable=self.saldo_var, bg="#101010", fg=ORO,
-                 font=self.f_peq).pack(side="left", padx=(0, 14))
+    def _cinta_estrategia(self):
+        cinta = QFrame()
+        cinta.setStyleSheet(
+            "QFrame{background:#101010;border:1px solid #2c2c2c;}")
+        h = QHBoxLayout(cinta)
+        h.setContentsMargins(10, 4, 10, 4)
+        h.setSpacing(8)
 
-        tk.Label(cinta, text="BENEFICIO", bg="#101010", fg=SUB, font=self.f_sub
-                 ).pack(side="left", padx=(0, 2))
-        tk.Label(cinta, textvariable=self.benef_var, bg="#101010", fg="#4caf50",
-                 font=self.f_peq).pack(side="right", padx=10)
+        def bloque(titulo, valor_label):
+            box = QHBoxLayout()
+            box.setSpacing(4)
+            box.addWidget(self._etiqueta(titulo, SUB, "sub"))
+            box.addWidget(valor_label)
+            return box
 
-    def _paneles(self, padre):
-        zona = tk.Frame(padre, bg=FONDO)
-        zona.grid(row=1, column=0, sticky="nsew", padx=12, pady=(6, 4))
-        for c in range(3):
-            zona.grid_columnconfigure(c, weight=1, uniform="p")
-        zona.grid_rowconfigure(0, weight=1)
+        self.lbl_fase = self._etiqueta("OBSERVANDO", ORO, "peq")
+        h.addLayout(bloque("FASE", self.lbl_fase))
+        self.lbl_apostados = self._etiqueta("—", TEXTO, "peq")
+        h.addLayout(bloque("APOSTADOS", self.lbl_apostados))
+        self.lbl_perdida = self._etiqueta("-0 ficha(s)", TEXTO, "peq")
+        h.addLayout(bloque("PÉRDIDA", self.lbl_perdida))
+        h.addWidget(self._btn("Reiniciar conteo", self._reiniciar_conteo,
+                              "#7a4d1a", "white", "sub"))
+        self.lbl_unidad = self._etiqueta("1 ficha(s)", TEXTO, "peq")
+        h.addLayout(bloque("UNIDAD", self.lbl_unidad))
 
-        self._panel_historial(zona, 0)
-        self._panel_repetidos(zona, 1)
-        self._panel_log(zona, 2)
+        self.entry_banca = QLineEdit()
+        self.entry_banca.setFixedWidth(70)
+        self.entry_banca.setAlignment(Qt.AlignCenter)
+        self.entry_banca.setStyleSheet(
+            "QLineEdit{background:#1a1a1a;color:white;border:1px solid #2c2c2c;"
+            "padding:2px 4px;}")
+        self._reg_fuente(self.entry_banca, "sub")
+        self.entry_banca.setText(str(self.banca))
+        h.addWidget(self._etiqueta("BANCA", SUB, "sub"))
+        h.addWidget(self.entry_banca)
+        h.addWidget(self._btn("OK", self._apl_banca, GRIS, TEXTO, "sub"))
 
-    def _caja_texto(self, padre, titulo, alto=8):
-        marco = tk.Frame(padre, bg=PANEL, padx=8, pady=6, highlightthickness=1,
-                         highlightbackground="#2c2c2c")
-        tk.Label(marco, text=titulo, bg=PANEL, fg=ORO, font=self.f_peq,
-                 anchor="w").pack(fill="x")
-        txt = tk.Text(marco, bg="#101010", fg=TEXTO, font=self.f_txt,
-                      relief="flat", bd=0, padx=6, pady=4, height=alto,
-                      highlightthickness=0)
-        txt.pack(fill="both", expand=True)
+        self.lbl_saldo = self._etiqueta("$200", ORO, "peq")
+        h.addLayout(bloque("SALDO", self.lbl_saldo))
+        self.lbl_benef = self._etiqueta("+$0", "#4caf50", "peq")
+        h.addLayout(bloque("BENEFICIO", self.lbl_benef))
+        h.addStretch(1)
+        return cinta
+
+    def _caja_texto(self, titulo):
+        marco = QFrame()
+        marco.setStyleSheet("QFrame{background:%s;border:1px solid #2c2c2c;}"
+                            % PANEL)
+        v = QVBoxLayout(marco)
+        v.setContentsMargins(8, 6, 8, 6)
+        v.setSpacing(2)
+        v.addWidget(self._etiqueta(titulo, ORO, "peq"))
+        txt = QPlainTextEdit()
+        txt.setReadOnly(True)
+        txt.setStyleSheet("QPlainTextEdit{background:#101010;color:%s;"
+                          "border:none;}" % TEXTO)
+        self._reg_fuente(txt, "txt")
+        v.addWidget(txt, 1)
         return marco, txt
 
-    def _panel_historial(self, padre, col):
-        marco, txt = self._caja_texto(padre, "HISTORIAL", alto=6)
-        marco.grid(row=0, column=col, sticky="nsew", padx=(0, 6), pady=6)
-        txt.tag_configure("rojo", foreground="#ff6b6b")
-        txt.tag_configure("negro", foreground="#ffffff")
-        txt.tag_configure("verde", foreground="#4caf50")
-        txt.configure(state="disabled")
-        self.txt_historial = txt
+    def _paneles(self, layout):
+        zona = QHBoxLayout()
+        zona.setSpacing(6)
 
-    def _panel_repetidos(self, padre, col):
-        marco, txt = self._caja_texto(padre, "REPETIDOS EN ESTA JUGADA", alto=6)
-        marco.grid(row=0, column=col, sticky="nsew", padx=6, pady=6)
-        txt.configure(state="disabled")
-        txt.insert("end", "Ninguno todavía")
-        txt.configure(state="disabled")
-        self.txt_repetidos = txt
+        self._marco_hist, self.txt_historial = self._caja_texto("HISTORIAL")
+        self._marco_rep, self.txt_repetidos = self._caja_texto(
+            "REPETIDOS EN ESTA JUGADA")
+        self._marco_log, self.txt_log = self._caja_texto("RESULTADOS")
 
-    def _panel_log(self, padre, col):
-        marco, txt = self._caja_texto(padre, "RESULTADOS", alto=6)
-        marco.grid(row=0, column=col, sticky="nsew", padx=(6, 0), pady=6)
-        txt.configure(state="disabled")
-        self.txt_log = txt
+        zona.addWidget(self._marco_hist, 1)
+        zona.addWidget(self._marco_rep, 1)
+        zona.addWidget(self._marco_log, 1)
+        layout.addLayout(zona, 2)
 
-    def _marco_mesa(self, padre):
-        contenedor = tk.Frame(padre, bg=FONDO)
-        contenedor.grid(row=3, column=0, sticky="nsew", padx=14, pady=(2, 8))
-        contenedor.grid_columnconfigure(0, weight=1)
-        contenedor.grid_rowconfigure(0, weight=1)
+    def _marco_mesa(self, layout):
+        contenedor = QWidget()
+        v = QVBoxLayout(contenedor)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(2)
+        self.mesa = MesaWidget(self)
+        self.chips = ChipBar(self)
+        v.addWidget(self.mesa, 1)
+        v.addWidget(self.chips, 0)
+        layout.addWidget(contenedor, 5)
 
-        self.mesa = tk.Frame(contenedor, bg=FONDO)
-        self.mesa.grid(row=0, column=0, sticky="nsew")
-
-        cero = self._celda(self.mesa, "0", "0", VERDE)
-        cero.grid(row=0, column=0, rowspan=3, sticky="nsew")
-
-        for i, fila in enumerate(FILAS):
-            for j, num in enumerate(fila):
-                bg = ROJO_BG if num in ROJO else NEGRO_BG
-                cel = self._celda(self.mesa, str(num), str(num), bg)
-                cel.grid(row=i, column=1 + j, sticky="nsew")
-            self._celda(self.mesa, "2:1", f"col{i+1}", AZUL
-                        ).grid(row=i, column=13, sticky="nsew")
-
-        docenas = [("1-12", "dozen1"), ("13-24", "dozen2"), ("25-36", "dozen3")]
-        for i, (texto, loc) in enumerate(docenas):
-            self._celda(self.mesa, texto, loc, AZUL
-                        ).grid(row=3, column=1 + i * 4, columnspan=4, sticky="nsew")
-
-        externas = [("1-18", "1-18", GRIS), ("PAR", "par", GRIS),
-                    ("ROJO", "rojo", ROJO_BG), ("NEGRO", "negro", NEGRO_BG),
-                    ("IMPAR", "impar", GRIS), ("19-36", "19-36", GRIS)]
-        for i, (texto, loc, bg) in enumerate(externas):
-            self._celda(self.mesa, texto, loc, bg
-                        ).grid(row=4, column=1 + i * 2, columnspan=2, sticky="nsew")
-
-        for c in range(14):
-            self.mesa.grid_columnconfigure(c, weight=1)
-        for r in range(5):
-            self.mesa.grid_rowconfigure(r, weight=1)
-
-    def _celda(self, padre, texto, loc, bg):
-        marco = tk.Frame(padre, bg=bg, highlightbackground="#2b2b2b",
-                         highlightthickness=1, padx=1, pady=1)
-        lbl_num = tk.Label(marco, text=texto, bg=bg, fg="white", font=self.f_num,
-                           width=3)
-        lbl_num.pack(fill="both", expand=True)
-        lbl_mon = tk.Label(marco, text=" ", bg=bg, fg=ORO, font=self.f_mon)
-        lbl_mon.pack(fill="x")
-        lbl_est = tk.Label(marco, text="", bg=bg, fg="#ffd700", font=self.f_est)
-        lbl_est.pack(fill="x")
-        for w in (marco, lbl_num, lbl_mon, lbl_est):
-            w.bind("<Button-1>", lambda e, l=loc: self._agregar_apuesta(l))
-            w.bind("<Button-3>", lambda e, l=loc: self._quitar_apuesta(l))
-        self.celdas[loc] = (marco, lbl_mon, lbl_est)
-        return marco
-
-    def _barra_fichas(self, padre):
-        bar = tk.Frame(padre, bg=FONDO)
-        bar.grid(row=4, column=0, sticky="ew", pady=(0, 6))
-        for valor in VALORES_FICHAS:
-            can = tk.Canvas(bar, bg=FONDO, highlightthickness=0)
-            can.pack(side="left", padx=5)
-            can.bind("<Button-1>", lambda e, v=valor: self._set_chip(v))
-            self.col_fichas.append((valor, can))
-
-    def _btn_nueva(self, padre):
-        frame = tk.Frame(padre, bg=FONDO)
-        frame.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 12))
-        botones = tk.Frame(frame, bg=FONDO)
-        botones.pack(fill="x")
-        tk.Button(botones, text="NUEVA RONDA", command=self._nueva_ronda,
-                  font=self.f_btn, bg="#9c1010", fg="white", relief="flat", bd=0,
-                  padx=10, pady=6, activebackground="#b31414", cursor="hand2",
-                  ).pack(side="left", fill="both", expand=True, padx=(0, 3))
-        tk.Button(botones, text="NUEVA RONDA CON ÚLTIMAS RONDAS",
-                  command=self._nueva_ronda_rapida,
-                  font=self.f_btn, bg="#7a4d1a", fg="white", relief="flat", bd=0,
-                  padx=10, pady=6, activebackground="#955d1f", cursor="hand2",
-                  ).pack(side="left", fill="both", expand=True, padx=(3, 0))
-
-    def _dibujar_fichas(self):
-        r = max(13, int(21 * self._s))
-        for valor, can in self.col_fichas:
-            d = r * 2 + 8
-            can.configure(width=d, height=d)
-            can.delete("all")
-            sel = (self.chip.get() == valor)
-            can.create_oval(4, 4, d - 4, d - 4, fill=COLOR_FICHA[valor],
-                            outline=ORO if sel else "#5a5a5a", width=3 if sel else 2)
-            can.create_text(d // 2, d // 2, text=f"${valor}", fill=TEXTO_FICHA[valor],
-                            font=self.f_chip)
-
-    def _set_chip(self, valor):
-        self.chip.set(valor)
-        self._dibujar_fichas()
+    def _btn_nueva(self, layout):
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        b1 = self._btn("NUEVA RONDA", self._nueva_ronda, "#9c1010", "white",
+                       "btn")
+        b2 = self._btn("NUEVA RONDA CON ÚLTIMAS RONDAS", self._nueva_ronda_rapida,
+                       "#7a4d1a", "white", "btn")
+        b1.setMinimumHeight(38)
+        b2.setMinimumHeight(38)
+        row.addWidget(b1, 1)
+        row.addWidget(b2, 1)
+        layout.addLayout(row, 0)
 
     # ---------- apuestas manuales ----------
 
     def _agregar_apuesta(self, loc):
-        monto = self.chip.get()
+        monto = self.chip
         if monto <= 0:
             return
         self.bets[loc] = self.bets.get(loc, 0) + monto
         self._monito(loc)
 
     def _quitar_apuesta(self, loc):
-        monto = self.chip.get()
+        monto = self.chip
         if loc in self.bets:
             self.bets[loc] = max(0, self.bets[loc] - monto)
             if self.bets[loc] == 0:
@@ -338,39 +443,39 @@ class RuletaApp:
             self._monito(loc)
 
     def _monito(self, loc):
-        marco, lbl, _ = self.celdas[loc]
-        monto = self.bets.get(loc, 0)
-        lbl.config(text=f"${monto}" if monto else "")
-        self.total_var.set(f"Total: ${sum(self.bets.values())}")
+        if loc in self.bets:
+            monto = self.bets[loc]
+        else:
+            monto = 0
+        self.lbl_total.setText("Total: $%d" % sum(self.bets.values()))
+        if self.mesa:
+            self.mesa.update()
 
     def _limpiar_apuestas(self):
         self.bets = {}
-        for marco, lbl, _ in self.celdas.values():
-            lbl.config(text="")
-        self.total_var.set("Total: $0")
+        self.lbl_total.setText("Total: $0")
+        self.mesa.update()
 
     # ---------- estrategia 3 repeticiones ----------
 
     def _apl_banca(self):
+        texto = self.entry_banca.text().strip()
         try:
-            self.saldo = int(self.banca.get())
+            self.saldo = int(texto)
         except ValueError:
-            messagebox.showerror("Error", "Banca inválida.")
+            QMessageBox.warning(self, "Error", "Banca inválida.")
             return
         self._cinta()
-        self._log(f"Banca establecida en ${self.saldo}")
+        self._log("Banca establecida en $%d" % self.saldo)
 
     def _marcar(self, n):
-        marco, _, lbl = self.celdas[str(n)]
-        lbl.config(text=f"R{int(self.estrategia[n])}")
+        self.mesa.update()
 
     def _desmarcar(self):
-        for loc in self.estrategia:
-            self.celdas[str(loc)][2].config(text="")
+        self.mesa.update()
 
     def _radicar_al_marcar(self):
-        for loc, unidad in self.estrategia.items():
-            self.celdas[str(loc)][2].config(text=f"R{int(unidad)}")
+        self.mesa.update()
 
     def _reiniciar_conteo(self):
         self.perdida = 0
@@ -390,21 +495,21 @@ class RuletaApp:
         self._log("NUEVA JUGADA: observa y apunta los números (sin apostar).")
 
     def _registrar(self):
-        texto = self.entry_num.get().strip()
+        texto = self.entry_num.text().strip()
         if not texto:
             return
         try:
             n = int(texto)
         except ValueError:
-            messagebox.showerror("Error", "Ingresa un número válido.")
+            QMessageBox.warning(self, "Error", "Ingresa un número válido.")
             return
         if n < 0 or n > 36:
-            messagebox.showerror("Error", "El número debe estar entre 0 y 36.")
+            QMessageBox.warning(self, "Error", "El número debe estar entre 0 y 36.")
             return
 
-        self.entry_num.delete(0, "end")
+        self.entry_num.clear()
         self.historial.append(n)
-        self.tiros_var.set(f"Tiros: {len(self.historial)}")
+        self.lbl_tiros.setText("Tiros: %d" % len(self.historial))
         self.juego_tiros += 1
 
         color = "rojo" if n in ROJO else ("negro" if n in NEGRO else "verde")
@@ -413,7 +518,7 @@ class RuletaApp:
         self._procesar_jugada(n)
         self._actualizar_repetidos()
         self._cinta()
-        self.entry_num.focus_set()
+        self.entry_num.setFocus()
 
     def _procesar_jugada(self, n):
         c = self.juego_count.get(n, 0) + 1
@@ -424,9 +529,10 @@ class RuletaApp:
             N = len(activos)
             ganancia = (36 - N) * self.unidad - self.perdida
             self.beneficio += ganancia
-            self._log(f"¡¡3ª repetición del {n}!! Ganas +${ganancia} "
-                      f"(pleno {self.unidad} ficha(s), {N} números, pérdida previa "
-                      f"{self.perdida} ficha(s)). Beneficio total: ${self.beneficio}.")
+            self._log("¡¡3ª repetición del %d!! Ganas +$%d "
+                      "(pleno %d ficha(s), %d números, pérdida previa "
+                      "%d ficha(s)). Beneficio total: $%d." %
+                      (n, ganancia, self.unidad, N, self.perdida, self.beneficio))
             self._fin_juego()
             return
 
@@ -437,8 +543,9 @@ class RuletaApp:
             self.estrategia[n] = self.unidad
             self.fase = "jug"
             self._marcar(n)
-            self._log(f"¡{n} se repite! Añades {n} a las apuestas (ficha {self.unidad}). "
-                      f"Va {len(self.estrategia)} número(s) apostados.")
+            self._log("¡%d se repite! Añades %d a las apuestas (ficha %d). "
+                      "Va %d número(s) apostados." %
+                      (n, n, self.unidad, len(self.estrategia)))
 
         self._ajustar_nivel()
 
@@ -458,9 +565,9 @@ class RuletaApp:
             self.estrategia = {k: self.unidad for k in self.estrategia}
             self._radicar_al_marcar()
             cambio = True
-            self._log(f"Pérdida {self.perdida} ficha(s): la próxima apuesta superaría "
-                      f"el límite (-{limite}). Sumas 1 ficha -> {self.unidad} ficha(s) "
-                      f"por número.")
+            self._log("Pérdida %d ficha(s): la próxima apuesta superaría "
+                      "el límite (-%d). Sumas 1 ficha -> %d ficha(s) "
+                      "por número." % (self.perdida, limite, self.unidad))
         if cambio:
             self._cinta()
 
@@ -476,30 +583,29 @@ class RuletaApp:
         self.unidad = 1
         self.juego_tiros = 0
         self.fase = "obs"
-        for marco, lbl, _ in self.celdas.values():
-            lbl.config(text="")
-        if self.ultima_celda and self.ultima_celda in self.celdas:
-            self.celdas[self.ultima_celda][0].config(
-                highlightbackground="#2b2b2b", highlightthickness=1)
+        self.lbl_total.setText("Total: $0")
         self.ultima_celda = None
-        for w in (self.txt_historial, self.txt_log):
-            w.configure(state="normal")
-            w.delete("1.0", "end")
-            w.configure(state="disabled")
+        self.txt_historial.clear()
+        self.txt_log.clear()
+        self.mesa.update()
+
+    def _preguntar(self, titulo, mensaje):
+        r = QMessageBox.question(self, titulo, mensaje,
+                                 QMessageBox.StandardButton.Yes |
+                                 QMessageBox.StandardButton.No)
+        return r == QMessageBox.StandardButton.Yes
 
     def _nueva_ronda(self):
-        if not messagebox.askyesno("Nueva ronda",
-                                   "¿Reiniciar toda la sesión (apuestas, historial, "
-                                   "jugada y beneficios)?"):
+        if not self._preguntar("Nueva ronda",
+                               "¿Reiniciar toda la sesión (apuestas, historial, "
+                               "jugada y beneficios)?"):
             return
         self.beneficio = 0
         self._limpiar()
-        self.tiros_var.set("Tiros: 0")
-        self.total_var.set("Total: $0")
-        self.txt_repetidos.configure(state="normal")
-        self.txt_repetidos.delete("1.0", "end")
-        self.txt_repetidos.insert("end", "Ninguno todavía")
-        self.txt_repetidos.configure(state="disabled")
+        self.lbl_tiros.setText("Tiros: 0")
+        self.lbl_total.setText("Total: $0")
+        self.txt_repetidos.clear()
+        self._insertar_pane(self.txt_repetidos, "Ninguno todavía", TEXTO)
         self._cinta()
         self._log("Nueva sesión. Observa y apunta los números.")
 
@@ -508,16 +614,16 @@ class RuletaApp:
         if not cola:
             self._nueva_ronda()
             return
-        if not messagebox.askyesno(
+        if not self._preguntar(
                 "Nueva ronda con últimas rondas",
-                f"¿Empezar nueva ronda conservando los últimos {len(cola)} números "
-                f"y sus repeticiones?"):
+                "¿Empezar nueva ronda conservando los últimos %d números "
+                "y sus repeticiones?" % len(cola)):
             return
         self.beneficio = 0
         self._limpiar()
         self.historial = cola
-        self.tiros_var.set(f"Tiros: {len(self.historial)}")
-        self.total_var.set("Total: $0")
+        self.lbl_tiros.setText("Tiros: %d" % len(self.historial))
+        self.lbl_total.setText("Total: $0")
         for n in cola:
             tag = "rojo" if n in ROJO else ("negro" if n in NEGRO else "verde")
             self._agregar_historial(n, tag)
@@ -532,85 +638,83 @@ class RuletaApp:
         self.fase = "jug" if self.estrategia else "obs"
         self._actualizar_repetidos()
         self._cinta()
-        self._log(f"Nueva ronda rápida: conservados {len(cola)} números. "
-                  f"Repetidos heredados: {', '.join(heredados) or 'ninguno'}.")
+        self._log("Nueva ronda rápida: conservados %d números. "
+                  "Repetidos heredados: %s." %
+                  (len(cola), ", ".join(heredados) or "ninguno"))
 
     # ---------- paneles dinámicos ----------
 
     def _actualizar_repetidos(self):
         repetidos = [(n, c) for n, c in self.juego_count.items() if c >= 2]
         repetidos.sort(key=lambda x: (-x[1], x[0]))
-        self.txt_repetidos.configure(state="normal")
-        self.txt_repetidos.delete("1.0", "end")
+        self.txt_repetidos.clear()
         if repetidos:
             for n, c in repetidos:
                 sufijo = "  <- ¡3ª!" if n in self.estrategia and c >= 3 else ""
-                self.txt_repetidos.insert("end", f"{n:>3}  ->  {c} veces{sufijo}\n")
+                self._insertar_pane(self.txt_repetidos,
+                                    "%3d  ->  %d veces%s" % (n, c, sufijo), TEXTO)
         else:
-            self.txt_repetidos.insert("end", "Ninguno todavía")
-        self.txt_repetidos.configure(state="disabled")
+            self._insertar_pane(self.txt_repetidos, "Ninguno todavía", TEXTO)
 
     def _cinta(self):
         if self.fase == "obs":
-            self.fase_var.set(f"OBSERVANDO (giro {self.juego_tiros})")
-            self.val_fase.config(fg=ORO if self.juego_tiros < 9 else "#ff5252")
+            texto = "OBSERVANDO (giro %d)" % self.juego_tiros
             if self.juego_tiros >= 9 and self.juego_tiros <= 20:
-                self.fase_var.set(f"OBSERVANDO · zona amarilla (giro {self.juego_tiros})")
+                texto = "OBSERVANDO · zona amarilla (giro %d)" % self.juego_tiros
+            color = ORO if self.juego_tiros < 9 else "#ff5252"
+            self.lbl_fase.setText(texto)
+            self.lbl_fase.setStyleSheet("color:%s;" % color)
         else:
-            self.fase_var.set("JUGANDO")
-            self.val_fase.config(fg="#4caf50")
+            self.lbl_fase.setText("JUGANDO")
+            self.lbl_fase.setStyleSheet("color:#4caf50;")
 
-        self.apuestas_var.set(", ".join(str(k) for k in self.estrategia) or "—")
+        self.lbl_apostados.setText(", ".join(str(k) for k in self.estrategia) or "—")
         limite = self._limite_perdida()
         if limite is None:
-            self.perdida_var.set(f"-{self.perdida} ficha(s)")
-            self.lbl_perdida.config(fg=TEXTO)
+            self.lbl_perdida.setText("-%d ficha(s)" % self.perdida)
+            self.lbl_perdida.setStyleSheet("color:%s;" % TEXTO)
         else:
-            self.perdida_var.set(f"-{self.perdida} / límite -{limite}")
+            self.lbl_perdida.setText("-%d / límite -%d" % (self.perdida, limite))
             if self.perdida >= limite * 0.75:
-                self.lbl_perdida.config(fg="#ff5252")
+                self.lbl_perdida.setStyleSheet("color:#ff5252;")
             else:
-                self.lbl_perdida.config(fg=TEXTO)
-        self.unidad_var.set(f"{self.unidad} ficha(s)")
-        self.saldo_var.set(f"${self.saldo + self.beneficio}")
-        self.benef_var.set(f"+${self.beneficio}")
+                self.lbl_perdida.setStyleSheet("color:%s;" % TEXTO)
+        self.lbl_unidad.setText("%d ficha(s)" % self.unidad)
+        self.lbl_saldo.setText("$%d" % (self.saldo + self.beneficio))
+        self.lbl_benef.setText("+$%d" % self.beneficio)
+
+    def _insertar_pane(self, pane, texto, color):
+        cur = pane.textCursor()
+        cur.movePosition(QTextCursor.End)
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(color))
+        cur.insertText(texto + "\n", fmt)
+        pane.setTextCursor(cur)
 
     def _agregar_historial(self, n, tag):
-        self.txt_historial.configure(state="normal")
-        self.txt_historial.insert("1.0", f"{n:>3}\n", tag)
-        self.txt_historial.configure(state="disabled")
+        color = {"rojo": "#ff6b6b", "negro": "#ffffff", "verde": "#4caf50"}[tag]
+        cur = self.txt_historial.textCursor()
+        cur.movePosition(QTextCursor.Start)
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(color))
+        cur.insertText("%3d\n" % n, fmt)
+        self.txt_historial.setTextCursor(cur)
 
     def _log(self, msj):
-        self.txt_log.configure(state="normal")
-        self.txt_log.insert("end", msj + "\n")
-        self.txt_log.see("end")
-        self.txt_log.configure(state="disabled")
+        self._insertar_pane(self.txt_log, msj, TEXTO)
 
     def _resaltar(self, loc):
-        if self.ultima_celda and self.ultima_celda in self.celdas:
-            self.celdas[self.ultima_celda][0].config(
-                highlightbackground="#2b2b2b", highlightthickness=1)
-        self.celdas[loc][0].config(highlightbackground=ORO, highlightthickness=3)
         self.ultima_celda = loc
-
-    def _on_configure(self, e):
-        if not hasattr(self, "content"):
-            return
-        w, h = e.width, e.height
-        s = min(w / BASE_W, h / BASE_H)
-        s = max(0.55, min(1.8, s))
-        if abs(s - self._s) < 0.03:
-            return
-        self._s = s
-        for f, base in self.fonts:
-            f.configure(size=max(6, int(round(base * s))))
-        self._dibujar_fichas()
+        self.mesa.update()
 
 
 def main():
-    root = tk.Tk()
-    RuletaApp(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+    app.setApplicationName("Ruleta 3 Repeticiones")
+    app.setStyle("Fusion")
+    w = RuletaApp()
+    w.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

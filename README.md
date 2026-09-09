@@ -1,6 +1,6 @@
 # Ruleta · Estrategia 3 Repeticiones
 
-Aplicación de escritorio para seguir la estrategia **“Tres Repeticiones”** (basada en la ley del tercio) en la ruleta, con mesa interactiva para colocar fichas, historial de números y apuestas automáticas de la progresión.
+Aplicación de escritorio (interfaz **Qt / PySide6**) para seguir la estrategia **“Tres Repeticiones”** (basada en la ley del tercio) en la ruleta, con mesa interactiva para colocar fichas, historial de números y apuestas automáticas de la progresión.
 
 Se compila automáticamente como aplicación nativa para **Windows**, **macOS** y **Linux** (sin necesidad de Python).
 
@@ -35,7 +35,9 @@ Los ejecutables no están firmados (cuesta dinero), así que el sistema mostrar�
 ## Compilar localmente
 
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name ruleta ruleta.py   # Windows/Linux
-pyinstaller --windowed --name ruleta ruleta.py             # macOS (.app)
+pip install pyinstaller pyside6
+pyinstaller --onefile --windowed --collect-all PySide6 --name ruleta ruleta.py   # Windows/Linux
+pyinstaller --windowed --collect-all PySide6 --name ruleta ruleta.py             # macOS (.app)
 ```
+
+Los ejecutables Qt pesan bastante más (≈100–200 MB) porque incluyen la librería Qt completa.
