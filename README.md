@@ -1,13 +1,17 @@
-# Ruleta · Estrategia 3 Repeticiones
+# Ruleta · 3 Repeticiones y 12 Corners
 
-Aplicación de escritorio (interfaz **Qt / PySide6**) para seguir la estrategia **“Tres Repeticiones”** (basada en la ley del tercio) en la ruleta, con mesa interactiva para colocar fichas, historial de números y apuestas automáticas de la progresión.
+Aplicación de escritorio (interfaz **Qt / PySide6**) para seguir dos estrategias de ruleta basadas en la **ley del tercio**:
 
-Se compila automáticamente como aplicación nativa para **Windows**, **macOS** y **Linux** (sin necesidad de Python).
+- **3 Repeticiones**: espera la 2ª aparición de un número para empezar a apostar por él; la 3ª repetición cierra la jugada con beneficio. Progresión `i×(36−N)−12`, control de pérdidas y apuestas manuales sobre la mesa.
+- **12 Corners**: divide el tapete en corners; según el número que sale se señala el corner a jugar y se coloca la moneda en la intersección que une sus 4 números. Sigue los niveles del video (sumar 1 ficha por corner al perder, volver a puesta base al alcanzar el mejor saldo).
+
+La app se compila automáticamente como aplicación nativa para **Windows**, **macOS** y **Linux** (sin necesidad de Python).
 
 ## Videos de referencia
 
-- **Parte 1 · Estrategia 3 Repeticiones**: https://youtu.be/6_ZdYiSr5No
-- **Parte 2 · Aclaraciones y progresión de apuestas**: https://www.youtube.com/watch?v=2fcX6c0rid8
+- **3 Repeticiones (parte 1)**: https://youtu.be/6_ZdYiSr5No
+- **3 Repeticiones (parte 2 · aclaraciones y progresión)**: https://www.youtube.com/watch?v=2fcX6c0rid8
+- **12 Corners**: pendiente de incluir el enlace del video de la estrategia.
 
 ## Descargar
 
@@ -29,20 +33,32 @@ Los ejecutables no están firmados (cuesta dinero), así que el sistema mostrar�
 
 ## Uso
 
-1. Coloca la ficha elegida (abajo) sobre la mesa para tus apuestas manuales.
-2. Escribe el número que salió y pulsa **Registrar**.
-3. La app detecta las repeticiones (R) y gestiona la jugada por ti:
-   - 2ª aparición de un número → empiezas a apostar por él.
-   - 3ª repetición → ganas la jugada (premio − pérdidas = beneficio ≥ 12).
-   - Cuando la pérdida vaya a superar el límite, **sumas 1 ficha** por número (progresión `i×(36−N)−12`).
-4. **NUEVA RONDA** reinicia la jugada; **NUEVA RONDA CON ÚLTIMAS RONDAS** conserva los últimos 15 números.
+1. Escribe el número que salió y pulsa **Registrar**.
+2. **Pestaña 3 Repeticiones**:
+   - Coloca la ficha elegida (abajo) sobre la mesa para tus apuestas manuales.
+   - La app detecta las repeticiones (R) y gestiona la jugada: 2ª aparición → empiezas a apostar; 3ª repetición → ganas (premio − pérdidas ≥ 12).
+   - Cuando la pérdida vaya a superar el límite, **sumas 1 ficha** por número.
+   - El **saldo** (arriba) baja según lo apostado en cada tirada y sube al acertar; el **beneficio** acumula las ganancias.
+   - **NUEVA RONDA** reinicia la jugada; **NUEVA RONDA CON ÚLTIMAS RONDAS** conserva los últimos 15 números.
+3. **Pestaña 12 Corners**:
+   - El número salido señala el **corner a jugar** (resaltado en blanco) y se coloca una ficha con el dinero apostado en su intersección.
+   - Al perder se añade un corner y se suma 1 ficha a todos; al alcanzar el mejor saldo vuelve a la puesta base.
+   - El **saldo** (arriba) baja con la puesta de cada tirada y sube con el premio neto; **BENEFICIO** muestra la ganancia/pérdida de toda la partida.
 
 ## Compilar localmente
 
 ```bash
 pip install pyinstaller pyside6
-pyinstaller --onefile --windowed --collect-all PySide6 --name ruleta ruleta.py   # Windows/Linux
-pyinstaller --windowed --collect-all PySide6 --name ruleta ruleta.py             # macOS (.app)
+pyinstaller --onefile --windowed --collect-all PySide6 --name ruleta main.py   # Windows/Linux
+pyinstaller --windowed --collect-all PySide6 --name ruleta main.py             # macOS (.app)
 ```
 
 Los ejecutables Qt pesan bastante más (≈100–200 MB) porque incluyen la librería Qt completa.
+
+## Desarrollar (estructura MVC)
+
+```bash
+python main.py
+```
+
+Código organizado en paquetes: `modelos/` (lógica de las estrategias), `vistas/` (Qt), `controladores/` (cablean modelo y vista).

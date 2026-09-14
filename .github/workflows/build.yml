@@ -38,15 +38,15 @@ jobs:
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
-        run: pyinstaller --onefile --windowed --clean --collect-all PySide6 --name ruleta ruleta.py
+        run: pyinstaller --onefile --windowed --clean --collect-all PySide6 --name ruleta main.py
 
       - name: Build (macOS app bundle)
         if: runner.os == 'macOS'
-        run: pyinstaller --windowed --clean --collect-all PySide6 --name ruleta ruleta.py
+        run: pyinstaller --windowed --clean --collect-all PySide6 --name ruleta main.py
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
-        run: pyinstaller --onefile --windowed --clean --collect-all PySide6 --name ruleta ruleta.py
+        run: pyinstaller --onefile --windowed --clean --collect-all PySide6 --name ruleta main.py
 
       - name: Sign (macOS, ad-hoc)
         if: runner.os == 'macOS'
