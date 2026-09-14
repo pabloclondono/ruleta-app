@@ -47,8 +47,10 @@ class EstrategiaTresRepeticiones:
 
     def reiniciar_conteo(self):
         self.perdida = 0
-        return ("Conteo de pérdidas reiniciado. Puedes seguir jugando "
-                "la jugada.")
+        self.unidad = 1
+        self.estrategia = {k: 1 for k in self.estrategia}
+        return ("Conteo de pérdidas reiniciado: vuelves a pagar 1 ficha "
+                "por número. Puedes seguir jugando la jugada.")
 
     # ------------------------------------------------------------------
     # núcleo de la estrategia
