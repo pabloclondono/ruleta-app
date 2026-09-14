@@ -11,7 +11,7 @@ La app se compila automáticamente como aplicación nativa para **Windows**, **m
 
 - **3 Repeticiones (parte 1)**: https://youtu.be/6_ZdYiSr5No
 - **3 Repeticiones (parte 2 · aclaraciones y progresión)**: https://www.youtube.com/watch?v=2fcX6c0rid8
-- **12 Corners**: pendiente de incluir el enlace del video de la estrategia.
+- **12 Corners**: https://www.youtube.com/watch?v=RHv2Qs5oFx4
 
 ## Descargar
 
