@@ -11,6 +11,7 @@ class ControladorTresReps:
         self.vista = VistaTresReps()
         v = self.vista
         v.numero_ingresado.connect(self.registrar)
+        v.numero_sin_apuesta.connect(self.registrar_sin_apuesta)
         v.reiniciar_conteo_pedido.connect(self.reiniciar_conteo)
         v.nueva_ronda_pedida.connect(self.nueva_ronda)
         v.nueva_ronda_rapida_pedida.connect(self.nueva_ronda_rapida)
@@ -24,6 +25,17 @@ class ControladorTresReps:
         m = self.modelo
         v = self.vista
         logs = m.registrar_numero(n)
+        v._agregar_historial(n, color_numero(n))
+        v.resaltar(str(n))
+        for l in logs:
+            v._log(l)
+        v.render(m.estado())
+        v.entry_num.setFocus()
+
+    def registrar_sin_apuesta(self, n):
+        m = self.modelo
+        v = self.vista
+        logs = m.registrar_sin_apuesta(n)
         v._agregar_historial(n, color_numero(n))
         v.resaltar(str(n))
         for l in logs:

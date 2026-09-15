@@ -61,6 +61,30 @@ class EstrategiaTresRepeticiones:
         self.juego_tiros += 1
         return self.procesar_numero(n)
 
+    def registrar_sin_apuesta(self, n):
+        self.historial.append(n)
+        self.juego_tiros += 1
+        logs = []
+        c = self.juego_count.get(n, 0) + 1
+        self.juego_count[n] = c
+        activos = list(self.estrategia)
+
+        if c >= 3 and n in activos:
+            logs.append("Sale %d: 3ª vez pero SIN apuesta ese giro -> no "
+                        "cobras premio. Se cierra la jugada." % n)
+            self._fin_juego()
+            logs.append("NUEVA JUGADA: observa y apunta los números "
+                        "(sin apostar).")
+            return logs
+
+        if c == 2:
+            self.estrategia[n] = self.unidad
+            self.fase = "jug"
+            logs.append("Sale %d: 2ª vez (registrado sin apuesta) -> se "
+                        "añade a las apuestas. Como no apostaste, no "
+                        "sube la pérdida." % n)
+        return logs
+
     def procesar_numero(self, n):
         logs = []
         c = self.juego_count.get(n, 0) + 1

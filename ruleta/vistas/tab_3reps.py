@@ -13,6 +13,7 @@ class VistaTresReps(BaseTab):
     """Interfaz de la estrategia "3 Repeticiones" (sin lógica de negocio)."""
 
     numero_ingresado = Signal(int)
+    numero_sin_apuesta = Signal(int)
     reiniciar_conteo_pedido = Signal()
     nueva_ronda_pedida = Signal()
     nueva_ronda_rapida_pedida = Signal()
@@ -70,6 +71,9 @@ class VistaTresReps(BaseTab):
 
         fila.addWidget(self._btn("Registrar", self._emitir_numero,
                                  ORO, "#1a1a1a", "peq"))
+        fila.addWidget(self._btn("Registrar sin apuesta",
+                                 self._emitir_numero_sin_apuesta,
+                                 "#6b4f1f", "white", "peq"))
         fila.addWidget(self._btn("Limpiar apuestas manuales",
                                  self.apuestas_limpiadas.emit,
                                  "#3a3a3a", TEXTO, "sub"))
@@ -197,20 +201,33 @@ class VistaTresReps(BaseTab):
     # ---------- entrada de datos ----------
 
     def _emitir_numero(self):
+        n = self._leer_numero()
+        if n is None:
+            return
+        self.entry_num.clear()
+        self.numero_ingresado.emit(n)
+
+    def _emitir_numero_sin_apuesta(self):
+        n = self._leer_numero()
+        if n is None:
+            return
+        self.entry_num.clear()
+        self.numero_sin_apuesta.emit(n)
+
+    def _leer_numero(self):
         texto = self.entry_num.text().strip()
         if not texto:
-            return
+            return None
         try:
             n = int(texto)
         except ValueError:
             QMessageBox.warning(self, "Error", "Ingresa un número válido.")
-            return
+            return None
         if n < 0 or n > 36:
             QMessageBox.warning(self, "Error",
                                 "El número debe estar entre 0 y 36.")
-            return
-        self.entry_num.clear()
-        self.numero_ingresado.emit(n)
+            return None
+        return n
 
     def _emitir_banca(self):
         texto = self.entry_banca.text().strip()
