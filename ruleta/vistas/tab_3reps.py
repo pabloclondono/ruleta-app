@@ -273,21 +273,14 @@ class VistaTresReps(BaseTab):
                 self.lbl_perdida.setStyleSheet("color:%s;" % TEXTO)
             apuesta_giro = n_num * unidad
             falta = max(0, limite - perdida)
-            tip = ("Pérdida en esta jugada: %d ficha(s)\n"
-                   "Cada giro pierdes %d × %d = %d ficha(s)\n"
-                   % (perdida, n_num, unidad, apuesta_giro))
-            if unidad <= 3:
-                tip += ("Progresión del video: subes a 2 fichas con -24, "
-                        "a 3 fichas con -42 y a 4 fichas con -54.\n"
-                        "Faltan %d ficha(s) para sumar 1 ficha por número.\n"
-                        "Al superarlo subes a %d ficha(s) por número."
-                        % (falta, unidad + 1))
-            else:
-                tip += ("Límite = ficha×(36−apostados)−12 = %d×(36−%d)−12 = %d\n"
-                        "Faltan %d ficha(s) para sumar 1 ficha por número.\n"
-                        "Al superarlo subes a %d ficha(s) por número."
-                        % (unidad, n_num, limite, falta, unidad + 1))
-            self.lbl_perdida.setToolTip(tip)
+            self.lbl_perdida.setToolTip(
+                "Pérdida en esta jugada: %d ficha(s)\n"
+                "Cada giro pierdes %d × %d = %d ficha(s)\n"
+                "Límite = fichas apostadas × 36 − 12 = %d × 36 − 12 = %d\n"
+                "Faltan %d ficha(s) para sumar 1 ficha por número.\n"
+                "Al superarlo subes a %d ficha(s) por número."
+                % (perdida, n_num, unidad, apuesta_giro, unidad, limite,
+                   falta, unidad + 1))
 
         self.lbl_unidad.setText("%d ficha(s)" % unidad)
         self.lbl_tiros.setText("Tiros: %d" % e["tiros"])

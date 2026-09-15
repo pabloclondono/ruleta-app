@@ -1,9 +1,6 @@
 class EstrategiaTresRepeticiones:
     """Lógica de la estrategia "3 Repeticiones" (sin dependencia de Qt)."""
 
-    # Progresión del video: pérdida a la que subir de X a X+1 fichas.
-    PROGRESION = {1: 24, 2: 42, 3: 54}
-
     def __init__(self, banca=200):
         self.banca = banca
         self.saldo = banca
@@ -102,12 +99,12 @@ class EstrategiaTresRepeticiones:
         return logs
 
     def limite_perdida(self):
-        if self.unidad <= 3:
-            return self.PROGRESION[self.unidad]
         N = len(self.estrategia)
         if N <= 0:
             return None
-        return self.unidad * (36 - N) - 12
+        # fichas = cantidad de fichas que se apuesta por número en ese
+        # momento × 36 − 12  (i=1 → 24, i=2 → 60, i=3 → 96, ...)
+        return self.unidad * 36 - 12
 
     def _ajustar_nivel(self):
         logs = []
