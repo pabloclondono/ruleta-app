@@ -93,16 +93,19 @@ class EstrategiaTresRepeticiones:
 
         if c >= 3 and n in activos:
             fichas_ganadas = self.unidad * 36
+            puesta_giro = len(activos) * self.unidad
             moneda = self.chip
-            ganancia = fichas_ganadas * moneda
-            self.saldo += ganancia
-            self.beneficio += ganancia
-            logs.append("¡¡3ª repetición del %d!! Apostabas %d ficha(s) por "
-                        "número → ganas %d × 36 = %d ficha(s), multiplicado "
-                        "por la ficha de $%d = +$%d. Beneficio total: $%d. "
-                        "Saldo: $%d." %
-                        (n, self.unidad, self.unidad, fichas_ganadas, moneda,
-                         ganancia, self.beneficio, self.saldo))
+            premio = fichas_ganadas * moneda
+            costo = puesta_giro * moneda
+            neto = premio - costo
+            self.saldo += neto
+            self.beneficio += neto
+            logs.append("¡¡3ª repetición del %d!! Ganabas %d ficha(s) × 36 = "
+                        "%d - %d que apostaste este giro = +%d ficha(s) × "
+                        "ficha de $%d = +$%d. Saldo: $%d. Beneficio: $%d." %
+                        (n, self.unidad, fichas_ganadas, puesta_giro,
+                         fichas_ganadas - puesta_giro, moneda, neto,
+                         self.saldo, self.beneficio))
             self._fin_juego()
             logs.append("NUEVA JUGADA: observa y apunta los números "
                         "(sin apostar).")

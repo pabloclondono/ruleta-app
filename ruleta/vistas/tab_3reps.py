@@ -308,8 +308,9 @@ class VistaTresReps(BaseTab):
         self.lbl_saldo.setToolTip(
             "Tu saldo en dinero.\n"
             "Baja cada giro según lo que apuestas en ese momento "
-            "(apostados × unidad × ficha) y sube cuando aciertas la "
-            "3ª repetición (+unidad × 36 × ficha).\n"
+            "(apostados × unidad × ficha) y sube al acertar la "
+            "3ª repetición con el premio neto "
+            "(36×unidad − puesta del giro) × ficha.\n"
             "Se reinicia al establecer una nueva banca.")
         self.lbl_benef.setText("+$%d" % e["beneficio"])
 
